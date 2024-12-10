@@ -133,6 +133,9 @@ class DTU:
 
             # Fetch additional data based on the value of response.ap
             for cp in range(1, response.ap):
+                # Wait for 1 second before sending the next request
+                await asyncio.sleep(1)
+
                 request.cp = cp
                 additional_response = await self.async_send_request(
                     command, request, RealDataNew_pb2.RealDataNewReqDTO
@@ -382,9 +385,30 @@ class DTU:
         command: bytes,
         request: Any,
         response_type: Any,
-        dtu_port: int = DTU_PORT,
+        dtu_port: int = DTU_PORT
     ):
-        """Send request to DTU."""
+        """Send request to DTU (with exponential backoff retries)."""
+
+        retries = 0
+        while retries < 5:
+            response = await self.async_send_single_request(
+                command, request, response_type, dtu_port
+            )
+            if response is not None:
+                return response
+            retries += 1
+            await asyncio.sleep(2 ** retries)
+
+        return None
+
+    async def async_send_single_request(
+        self,
+        command: bytes,
+        request: Any,
+        response_type: Any,
+        dtu_port: int = DTU_PORT
+    ):
+        """Send single request to DTU (no retries, use async_send_request instead)."""
 
         self.sequence = (self.sequence + 1) & 0xFFFF
 
